@@ -6,12 +6,13 @@ from torch.autograd import Variable
 
 class MinimaxEntropyEstimator:
     
-    def __init__(self, poly_coeff_path):
+    def __init__(self, poly_coeff_path, gpu=False):
         poly_entro = sio.loadmat(poly_coeff_path)['poly_entro']
         self._poly_entro = {
             d : poly_entro[d][0].flatten()
             for d in range(poly_entro.shape[0])
-        }        
+        }
+        self._gpu = gpu
 
     @staticmethod
     def _f(p):
@@ -37,6 +38,8 @@ class MinimaxEntropyEstimator:
     
     def cross_entro(self, dist_p, dist_q):
         H = Variable(torch.zeros(1)).double()
+        if self._gpu:
+            H = H.cuda()
         for i in range(len(dist_p)):
             H += self._g(dist_p[i], dist_q[i])
         return H
