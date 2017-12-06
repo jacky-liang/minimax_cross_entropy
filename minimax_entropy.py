@@ -48,7 +48,9 @@ class MinimaxEntropyEstimator:
         th = np.log(n)/n
         order = min(4 + int(np.ceil(1.2 * np.log(n))), 22)
         
-        H = Variable(torch.zeros(1)).double()        
+        H = Variable(torch.zeros(1)).double()
+        if self._gpu:
+            H = H.cuda()
         for i in range(len(dist_p)):
             p = dist_p[i]
             if (p.data == 0).all():
@@ -57,19 +59,41 @@ class MinimaxEntropyEstimator:
                 H_i = self._non_smooth(p, order)
             else:
                 H_i = self._smooth(p, n)
-            H += dist_q[i] /1./ p * H_i
+            H += dist_q[i] / p * H_i
+        return H
+    
+    def minimax_cross_entro_loss(self, dist_p, dist_q, n=10):
+        th = np.log(n)/n
+        order = min(4 + int(np.ceil(1.2 * np.log(n))), 22)
+        
+        H = Variable(torch.zeros(1)).double()
+        if self._gpu:
+            H = H.cuda()
+        for i in range(len(dist_p)):
+            p = dist_p[i]
+            if (p.data == 0).all():
+                continue
+            if (p.data < th).all():
+                H_i = self._smooth(p, order)
+            else:
+                H_i = self._smooth(p, n)
+            H += dist_q[i] / p * H_i
         return H
 
     def _non_smooth(self, p, order):
         d = order - 1
         H = Variable(torch.zeros(1)).double()
+        if self._gpu:
+            H = H.cuda()
         for m, c in enumerate(self._poly_entro[d]):
             H += (c * torch.pow(p, m)).flatten()[0]
-        H /= np.log(2)
-        return H        
+        return H / self._denom
 
     def _smooth(self, p, n):
-        return self._f(p) - self._f2(p) * p * (1 - p) / (2 * n)          
+        H = self._f(p) - self._f2(p) * p * (1 - p) / (2 * n)          
+        if self._gpu:
+            H = H.cuda()
+        return H
         
     def minimax_entro(self, dist, n):
         th = np.log(n)/n
