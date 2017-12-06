@@ -16,14 +16,14 @@ class MinimaxEntropyEstimator:
         self._gpu = gpu
         self._denom = np.log(base)
         self._n = n
+        self._th = np.log(n)/n
+        self._order = min(4 + int(np.ceil(1.2 * np.log(n))), 22)
 
     def _f(self, p):
-        if (p.data == 0).all():
-            return 0
         return - p * torch.log(p + eps) / self._denom
 
     def _f2(self, p):
-        return - 1. / (p * self._denom)
+        return - 1. / ((p + eps) * self._denom)
 
     def entro(self, dist):
         H = Variable(torch.zeros(1)).double()
@@ -32,8 +32,6 @@ class MinimaxEntropyEstimator:
         return H
     
     def _g(self, p, q):
-        if (p.data == 0).all():
-            return 0
         if (q.data == 1).all():
             return - torch.log(p + eps) / self._denom
         return - torch.log(1 - p + eps) / self._denom
@@ -48,7 +46,7 @@ class MinimaxEntropyEstimator:
     
     def minimax_cross_entro(self, dist_p, dist_q):
         n = self._n
-        th = np.log(n)/n
+        th = self._th
         order = min(4 + int(np.ceil(1.2 * np.log(n))), 22)
         
         H = Variable(torch.zeros(1)).double()
@@ -67,21 +65,27 @@ class MinimaxEntropyEstimator:
     
     def minimax_cross_entro_loss(self, dist_p, dist_q):
         n = self._n
-        th = np.log(n)/n
-        order = min(4 + int(np.ceil(1.2 * np.log(n))), 22)
+        th = self._th
+        order = self._order
         
         H = Variable(torch.zeros(1)).double()
         if self._gpu:
             H = H.cuda()
         for i in range(len(dist_p)):
             p = dist_p[i]
-            if (p.data == 0).all():
-                continue
-            if (p.data < th).all():
-                H_i = self._non_smooth(p, order)
+            q = dist_q[i]
+            
+            if (q.data == 1).all():
+                op = p
             else:
-                H_i = self._smooth(p)
-            H += dist_q[i] / p * H_i
+                op = 1 - p
+            
+            if (op.data < th).all():
+                H_i = self._non_smooth(op, order)
+            else:
+                H_i = self._smooth(op)
+
+            H += H_i / (p + eps)
         return H
 
     def _non_smooth(self, p, order):
