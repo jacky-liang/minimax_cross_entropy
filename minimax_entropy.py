@@ -6,23 +6,22 @@ from torch.autograd import Variable
 
 class MinimaxEntropyEstimator:
     
-    def __init__(self, poly_coeff_path, gpu=False):
+    def __init__(self, poly_coeff_path, gpu=False, base=np.e):
         poly_entro = sio.loadmat(poly_coeff_path)['poly_entro']
         self._poly_entro = {
             d : poly_entro[d][0].flatten()
             for d in range(poly_entro.shape[0])
         }
         self._gpu = gpu
+        self._denom = np.log(base)
 
-    @staticmethod
-    def _f(p):
+    def _f(self, p):
         if (p.data == 0).all():
             return 0
-        return - p * torch.log(p) / np.log(2)
+        return - p * torch.log(p) / self._denom
 
-    @staticmethod
-    def _f2(p):
-        return - 1. / (p * np.log(2))
+    def _f2(self, p):
+        return - 1. / (p * self._denom)
 
     def entro(self, dist):
         H = Variable(torch.zeros(1)).double()
@@ -30,13 +29,14 @@ class MinimaxEntropyEstimator:
             H += self._f(p)
         return H
     
-    @staticmethod
-    def _g(p, q):
+    def _g(self, p, q):
         if (p.data == 0).all():
             return 0
-        return - q * torch.log(p) / np.log(2)
+        if (q.data == 1).all():
+            return - torch.log(p) / self._denom
+        return - torch.log(1 - p) / self._denom
     
-    def cross_entro(self, dist_p, dist_q):
+    def cross_entro_loss(self, dist_p, dist_q):
         H = Variable(torch.zeros(1)).double()
         if self._gpu:
             H = H.cuda()
