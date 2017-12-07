@@ -85,7 +85,7 @@ class MinimaxEntropyEstimator:
             else:
                 H_i = self._smooth(op)
 
-            H += H_i / (p + eps)
+            H += H_i / (op + eps)
         return H
 
     def _non_smooth(self, p, order):
